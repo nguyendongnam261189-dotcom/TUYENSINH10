@@ -1,0 +1,5 @@
+{
+  "name": "Hệ thống quản lý lỗi tuyển sinh 10",
+  "description": "Ứng dụng giúp GVCN báo cáo sai sót hồ sơ tuyển sinh lớp 10 và IT Admin quản lý, xử lý lỗi.",
+  "requestFramePermissions": []
+}

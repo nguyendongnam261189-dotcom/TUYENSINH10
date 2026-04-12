@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.email == "nguyendongnam261189@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    match /users/{userId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /errorReports/{reportId} {
+      // Anyone can read reports
+      allow read: if true;
+      
+      // Anyone can create a report
+      allow create: if request.resource.data.status == 'pending';
+      
+      // Only admins can update or delete
+      allow update, delete: if isAdmin();
+    }
+  }
+}

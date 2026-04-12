@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application (Admin or Teacher)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "teacher"], "description": "Role of the user" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "ErrorReport": {
+      "title": "ErrorReport",
+      "description": "An error report submitted by a teacher",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentId": { "type": "string", "description": "Mã học sinh / Số báo danh" },
+        "className": { "type": "string", "description": "Lớp của học sinh" },
+        "description": { "type": "string", "description": "Chi tiết thông tin sai sót" },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "resolved"], "description": "Trạng thái xử lý" },
+        "teacherId": { "type": "string", "description": "UID của GVCN" },
+        "teacherName": { "type": "string", "description": "Tên của GVCN" },
+        "adminNotes": { "type": "string", "description": "Ghi chú của Admin sau khi xử lý" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentName", "studentId", "className", "description", "status", "teacherId", "teacherName", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles and roles"
+    },
+    "/errorReports/{reportId}": {
+      "schema": { "$ref": "#/entities/ErrorReport" },
+      "description": "Stores error reports submitted by teachers"
+    }
+  }
+}
