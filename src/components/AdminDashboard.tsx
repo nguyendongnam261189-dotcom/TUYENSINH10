@@ -3,13 +3,15 @@ import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, serverTimesta
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { ErrorReport, ReportStatus } from '../types';
 import { format } from 'date-fns';
-import { Clock, CheckCircle, AlertCircle, Search, Filter, X, Trash2 } from 'lucide-react';
+import { Clock, CheckCircle, AlertCircle, Search, Filter, X, Trash2, Download, Users } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export function AdminDashboard() {
   const [reports, setReports] = useState<ErrorReport[]>([]);
   const [selectedReport, setSelectedReport] = useState<ErrorReport | null>(null);
   const [reportToDelete, setReportToDelete] = useState<ErrorReport | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [classFilter, setClassFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   
   const [updateStatus, setUpdateStatus] = useState<ReportStatus>('pending');
@@ -69,18 +71,62 @@ export function AdminDashboard() {
     }
   };
 
+  const filteredReports = reports.filter(report => {
+    const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
+    const matchesClass = classFilter === 'all' || report.className === classFilter;
+    const matchesSearch = report.studentName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          report.className.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesClass && matchesSearch;
+  });
+
+  const handleExportExcel = () => {
+    // Sắp xếp báo cáo theo lớp rồi đến tên học sinh
+    const sortedReports = [...filteredReports].sort((a, b) => {
+      const numA = parseInt(a.className.split('/')[1] || '0');
+      const numB = parseInt(b.className.split('/')[1] || '0');
+      if (numA !== numB) return numA - numB;
+      return a.studentName.localeCompare(b.studentName);
+    });
+
+    const dataToExport = sortedReports.map(report => ({
+      'Lớp': report.className,
+      'Học sinh': report.studentName,
+      'Nội dung sai/lỗi': report.incorrectContent,
+      'Nội dung đúng cần điều chỉnh': report.correctContent,
+      'Trạng thái': report.status === 'pending' ? 'Chờ xử lý' : report.status === 'in-progress' ? 'Đang xử lý' : 'Đã hoàn thành',
+      'Phản hồi từ IT': report.adminNotes || '',
+      'Ngày báo cáo': report.createdAt?.toDate ? format(report.createdAt.toDate(), 'dd/MM/yyyy HH:mm') : ''
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    
+    // Auto-size columns slightly
+    const wscols = [
+      {wch: 10}, // Lớp
+      {wch: 25}, // Học sinh
+      {wch: 40}, // Nội dung sai
+      {wch: 40}, // Nội dung đúng
+      {wch: 15}, // Trạng thái
+      {wch: 30}, // Phản hồi
+      {wch: 20}  // Ngày báo cáo
+    ];
+    ws['!cols'] = wscols;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "BaoLoiTuyenSinh");
+    
+    const fileName = classFilter === 'all' 
+      ? `BaoLoiTuyenSinh_${format(new Date(), 'ddMMyyyy')}.xlsx`
+      : `BaoLoiTuyenSinh_Lop_${classFilter.replace('/', '_')}_${format(new Date(), 'ddMMyyyy')}.xlsx`;
+
+    XLSX.writeFile(wb, fileName);
+  };
+
   const openModal = (report: ErrorReport) => {
     setSelectedReport(report);
     setUpdateStatus(report.status);
     setUpdateNotes(report.adminNotes || '');
   };
-
-  const filteredReports = reports.filter(report => {
-    const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
-    const matchesSearch = report.studentName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          report.className.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
 
   // Group reports by class
   const groupedReports = filteredReports.reduce((acc, report) => {
@@ -111,9 +157,18 @@ export function AdminDashboard() {
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Quản trị viên IT - Xử lý lỗi tuyển sinh</h1>
-        <p className="text-gray-600">Tiếp nhận và xử lý các báo cáo sai sót từ GVCN</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Quản trị viên IT - Xử lý lỗi tuyển sinh</h1>
+          <p className="text-gray-600">Tiếp nhận và xử lý các báo cáo sai sót từ GVCN</p>
+        </div>
+        <button
+          onClick={handleExportExcel}
+          className="w-full sm:w-auto flex justify-center items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors whitespace-nowrap"
+        >
+          <Download className="w-5 h-5 mr-2" />
+          Xuất Excel
+        </button>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 mb-8">
@@ -128,6 +183,21 @@ export function AdminDashboard() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+        </div>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Users className="h-5 w-5 text-gray-400" />
+          </div>
+          <select
+            className="block w-full pl-10 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+            value={classFilter}
+            onChange={(e) => setClassFilter(e.target.value)}
+          >
+            <option value="all">Tất cả các lớp</option>
+            {Array.from({ length: 13 }, (_, i) => `9/${i + 1}`).map(cls => (
+              <option key={cls} value={cls}>Lớp {cls}</option>
+            ))}
+          </select>
         </div>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
